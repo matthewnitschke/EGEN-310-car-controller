@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+
+    <style>
+        * {
+            user-select: none;
+        }
+        body {
+            overscroll-behavior: contain;
+        }
+
+        body,
+        html {
+            height: 100%;
+            margin: 0;
+            font-family: sans-serif;
+        }
+
+        .buttons-container {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+
+            font-size: 5rem;
+            display: none;
+        }
+
+        .buttons-container polygon:active {
+            stroke: grey;
+            fill: grey;
+        }
+
+        .left-right-buttons {
+            display: flex;
+            align-items: center;
+        }
+
+        .lower-angle-buttons {
+            margin-top: -10px;
+        }
+
+        .left-right-buttons>svg {
+            margin: 0 3rem;
+        }
+
+        .radial-container {
+            position: fixed;
+            left: 50%;
+            transform: translate(-50%, 0);
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+        }
+
+        .radial-bounds {
+            width: 350px;
+            height: 350px;
+            border: solid 2px #000;
+            box-sizing: border-box;
+            display:flex;
+            flex-wrap:wrap;
+        }
+        .radial-cell {
+            width: 50%;
+            height: 50%;
+            box-sizing:border-box;
+            border: solid 1px #000;
+        }
+
+        .control-type-buttons {
+            text-align: center;
+            position: absolute;
+            width: 100%;
+            bottom: 1rem;
+
+            position: fixed;
+            left: 50%;
+            transform: translate(-50%, 0);
+        }
+
+        .radial-button, .arrows-button {
+            font-family: inherit;
+            font-size: 100%;
+            padding: .5em 1em;
+            color: #444;
+            color: rgba(0,0,0,.8);
+            border: 1px solid #999;
+            border: transparent;
+            background-color: #E6E6E6;
+            text-decoration: none;
+            border-radius: 2px;
+        }
+
+        .radial-button:active, .arrows-button:active {
+            box-shadow: 0 0 0 1px rgba(0,0,0,.15) inset, 0 0 6px rgba(0,0,0,.2) inset;
+            border-color: #000;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div class="buttons-container">
+        <?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg"
+            xmlns:xlink="http://www.w3.org/1999/xlink" style="isolation:isolate" viewBox="666 -13 111.089 111.089"
+            width="300" height="300">
+            <g>
+                <polygon data-direction="forward" points="721.544,-13,746.544,15,696.544,15" fill="rgb(0,0,0)" />
+                <polygon data-direction="forward-right" points="768.056,-3.967,771.288,17.979,746.11,-7.199" fill="rgb(0,0,0)" />
+                <polygon data-direction="forward-left" points="675.599,-3.967,697.544,-7.199,672.367,17.979" fill="rgb(0,0,0)" />
+                <polygon data-direction="backward-left" points="674.659,89.07,671.81,67.072,696.544,92.685" fill="rgb(0,0,0)" />
+                <polygon data-direction="backward-right" points="768.734,88.842,746.848,92.456,771.583,66.843" fill="rgb(0,0,0)" />
+                <polygon data-direction="backward" points="721.544,98.089,696.544,70,746.544,70" fill="rgb(0,0,0)" />
+                <polygon data-direction="left" points="666,42.544,694,17.544,694,67.544" fill="rgb(0,0,0)" />
+                <polygon data-direction="right" points="777.089,42.544,749,67.544,749,17.544" fill="rgb(0,0,0)" />
+            </g>
+        </svg>
+    </div>
+
+    <div class="radial-container">
+        <div class="radial-bounds">
+            <div class="radial-cell"></div>
+            <div class="radial-cell"></div>
+            <div class="radial-cell"></div>
+            <div class="radial-cell"></div>
+        </div>
+    </div>
+
+    <div class="control-type-buttons">
+        <input type="button" value="Radial" class="radial-button" style="display: none">
+        <input type="button" value="Arrows" class="arrows-button">
+    </div>
+
+    <script>
+        let touch = true
+
+        function stopRobot() {
+            fetch('/stop', {
+                method: 'POST'
+            })
+        }
+
+        // transforms the dom, x, and y cords into an augmented cord system which the server supports
+        function calculateCords(mouseX, mouseY, dom) {
+            var rect = dom.getBoundingClientRect();
+            var x = mouseX - rect.left; // x position within the element.
+            var y = mouseY - rect.top;  // y position within the element.
+
+            let rectWidth = (rect.left - rect.right)
+            let rectHeight = (rect.top - rect.bottom)
+
+            // offset cords to be in center of rect
+            x = x + (rectWidth/2)
+            y = y + (rectHeight/2)
+
+            // scale values so that they fall between -100 and 100
+            x = Math.round((x/(rectWidth/2))*100)
+            y = Math.round((y/(rectHeight/2))*100)
+
+            // ensure x and y stay within our bounds
+            if (x > 100) {
+                x = 100
+            } else if (x < -100){
+                x = -100
+            }
+
+            if (y > 100) {
+                y = 100
+            } else if (y < -100){
+                y = -100
+            }
+
+            return {
+                x: x,
+                y: y
+            }
+        }
+
+        // we cant flood the server with input requests, set a timeout and don't send any requests
+        // if the timeout is still in act
+        let lastCallTime = Date.now()
+        let timeout = 50
+        function handleRadialChange(e) {
+            if (radialDown) {
+                if (Date.now() - lastCallTime > timeout){
+                    let mouseX = touch ? e.touches[0].clientX : e.clientX
+                    let mouseY = touch ? e.touches[0].clientY : e.clientY
+                    let { x, y } = calculateCords(mouseX, mouseY, radialBounds)
+                    fetch(`/radial-change?x=${x}&y=${y}`, {
+                        method: 'POST',
+                    })
+                    lastCallTime = Date.now()
+                }
+            }
+        }
+
+        // for arrows
+        document.querySelectorAll(".buttons-container polygon").forEach(el => {
+            el.addEventListener(touch ? "touchstart" : "mousedown", () => {
+                fetch(`/${el.dataset.direction}`, {
+                    method: 'POST'
+                })
+            })
+
+            el.addEventListener(touch ? "touchend" : "mouseup", stopRobot)
+        })
+       
+        // for radial control
+        let radialContainer = document.querySelector(".radial-container")
+        let radialBounds = document.querySelector(".radial-bounds")
+        let radialDown = false
+        radialContainer.addEventListener(touch ? "touchstart" : "mousedown", (e) => {
+            radialDown = true
+            handleRadialChange(e)
+        })
+        radialContainer.addEventListener(touch ? "touchend" : "mouseup", () => {
+            radialDown = false
+            stopRobot()
+        })
+
+        radialContainer.addEventListener(touch ? "touchmove" : "mousemove", handleRadialChange)
+
+        // when the radial button is pressed, show the radial container and hide the arrows button
+        document.querySelector(".radial-button").addEventListener("click", () => {
+            document.querySelector(".radial-button").style.display = "none"
+            document.querySelector(".arrows-button").style.display = "initial"
+
+            document.querySelector(".radial-container").style.display = "flex"
+            document.querySelector(".buttons-container").style.display = "none"
+        })
+
+        // when the arrows button is pressed, show the arrows container and hide the radial container
+        document.querySelector(".arrows-button").addEventListener("click", () => {
+            document.querySelector(".radial-button").style.display = "initial"
+            document.querySelector(".arrows-button").style.display = "none"
+
+            document.querySelector(".radial-container").style.display = "none"
+            document.querySelector(".buttons-container").style.display = "flex"
+        })
+    </script>
+</body>
+
+</html>
