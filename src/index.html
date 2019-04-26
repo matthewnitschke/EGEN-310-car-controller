@@ -8,20 +8,24 @@
     <title>Document</title>
 
     <style>
+        
         * {
+            /* because this is used on a phone, disable any text selection */
             user-select: none;
         }
         body {
+            /* fixes the pull down refresh functionality for iPhones */
             overscroll-behavior: contain;
         }
 
-        body,
-        html {
+        /* root styles to make window size correctly */
+        body, html {
             height: 100%;
             margin: 0;
             font-family: sans-serif;
         }
 
+        /* the container for the arrow buttons */
         .buttons-container {
             height: 100%;
             display: flex;
@@ -33,16 +37,19 @@
             display: none;
         }
 
+        /* the state to display for when the arrow buttons are pressed */
         .buttons-container polygon:active {
             stroke: grey;
             fill: grey;
         }
 
+        /* set the correct display settings for the left and right buttons */
         .left-right-buttons {
             display: flex;
             align-items: center;
         }
 
+        /* correctly orient the angle buttons */
         .lower-angle-buttons {
             margin-top: -10px;
         }
@@ -51,6 +58,7 @@
             margin: 0 3rem;
         }
 
+        /* the container for the radial control */
         .radial-container {
             position: fixed;
             left: 50%;
@@ -62,6 +70,7 @@
             height: 100%;
         }
 
+        /* draws the plus inside the radial container */
         .radial-bounds {
             width: 350px;
             height: 350px;
@@ -77,6 +86,7 @@
             border: solid 1px #000;
         }
 
+        /* set the correct display settings for the buttons that switch between arrow and radial control */
         .control-type-buttons {
             text-align: center;
             position: absolute;
@@ -88,6 +98,7 @@
             transform: translate(-50%, 0);
         }
 
+        /* the actual button styles for the radial and arrow button switchers */
         .radial-button, .arrows-button {
             font-family: inherit;
             font-size: 100%;
@@ -101,6 +112,7 @@
             border-radius: 2px;
         }
 
+        /* the active state for the above buttons */
         .radial-button:active, .arrows-button:active {
             box-shadow: 0 0 0 1px rgba(0,0,0,.15) inset, 0 0 6px rgba(0,0,0,.2) inset;
             border-color: #000;
@@ -110,6 +122,11 @@
 </head>
 
 <body>
+    <!-- 
+        arrow buttons are rendered through svg. This allows for easy scaling and is much easier
+        than doing transforms and rotations on dom elements. Svg was created through the free online
+        svg editor 'gravit'
+    -->
     <div class="buttons-container">
         <?xml version="1.0" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg"
             xmlns:xlink="http://www.w3.org/1999/xlink" style="isolation:isolate" viewBox="666 -13 111.089 111.089"
@@ -127,6 +144,7 @@
         </svg>
     </div>
 
+    <!-- radial container is just a simple flexbox container -->
     <div class="radial-container">
         <div class="radial-bounds">
             <div class="radial-cell"></div>
@@ -136,14 +154,17 @@
         </div>
     </div>
 
+    <!-- these switch between the two control methods: 'radial' and 'arrows' -->
     <div class="control-type-buttons">
         <input type="button" value="Radial" class="radial-button" style="display: none">
         <input type="button" value="Arrows" class="arrows-button">
     </div>
 
     <script>
+        // keep track if we are currently touching the screen or not
         let touch = true
 
+        // simple utility method to stop the robots movements
         function stopRobot() {
             fetch('/stop', {
                 method: 'POST'
@@ -167,19 +188,21 @@
             x = Math.round((x/(rectWidth/2))*100)
             y = Math.round((y/(rectHeight/2))*100)
 
-            // ensure x and y stay within our bounds
+            // ensure x stays within the bounds
             if (x > 100) {
                 x = 100
             } else if (x < -100){
                 x = -100
             }
 
+            // ensure y stays within the bounds
             if (y > 100) {
                 y = 100
             } else if (y < -100){
                 y = -100
             }
 
+            // return a bundled object of x and y values
             return {
                 x: x,
                 y: y
@@ -187,47 +210,59 @@
         }
 
         // we cant flood the server with input requests, set a timeout and don't send any requests
-        // if the timeout is still in act
+        // if the timeout is still active
         let lastCallTime = Date.now()
-        let timeout = 50
+        let timeout = 50 // timeout in 50ms
         function handleRadialChange(e) {
-            if (radialDown) {
-                if (Date.now() - lastCallTime > timeout){
+            if (radialDown) { // only handle change if the user is pressing the screen
+                if (Date.now() - lastCallTime > timeout) {
+                    // extract the cursor x and y from the dom event e
                     let mouseX = touch ? e.touches[0].clientX : e.clientX
                     let mouseY = touch ? e.touches[0].clientY : e.clientY
+
+                    // correctly scale the x and y bounds
                     let { x, y } = calculateCords(mouseX, mouseY, radialBounds)
+
+                    // preform the robot call
                     fetch(`/radial-change?x=${x}&y=${y}`, {
                         method: 'POST',
                     })
+
+                    // update the last call time to prevent server flooding
                     lastCallTime = Date.now()
                 }
             }
         }
 
-        // for arrows
+        // setup click events for the arrow buttons
         document.querySelectorAll(".buttons-container polygon").forEach(el => {
+
+            // when a direction button is pressed, start moving the desired direction
             el.addEventListener(touch ? "touchstart" : "mousedown", () => {
+                // the direction of the button is stored on the dom's [data] attribute
                 fetch(`/${el.dataset.direction}`, {
                     method: 'POST'
                 })
             })
 
+            // when the cursor is let go, stop the robot
             el.addEventListener(touch ? "touchend" : "mouseup", stopRobot)
         })
        
         // for radial control
-        let radialContainer = document.querySelector(".radial-container")
-        let radialBounds = document.querySelector(".radial-bounds")
+        let radialContainer = document.querySelector(".radial-container") // grab the radial container for js consumption
+        let radialBounds = document.querySelector(".radial-bounds") // grab the bounds to correctly calculate the scaled x and y cords
         let radialDown = false
         radialContainer.addEventListener(touch ? "touchstart" : "mousedown", (e) => {
-            radialDown = true
+            radialDown = true // keep track if the cursor is down
             handleRadialChange(e)
         })
         radialContainer.addEventListener(touch ? "touchend" : "mouseup", () => {
-            radialDown = false
+            radialDown = false // keep track if the cursor is down
             stopRobot()
         })
 
+        // notify the 'handleRadialChange' method on every move within the radialContainer
         radialContainer.addEventListener(touch ? "touchmove" : "mousemove", handleRadialChange)
 
         // when the radial button is pressed, show the radial container and hide the arrows button

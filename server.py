@@ -29,6 +29,7 @@ class Robot:
             self.kit = MotorKit()
 
     #  ==== DIRECTION METHODS ====
+    # simple utility methods to abstract motor speed setting
     def forward(self):
         self._setAllMotors(self.maxSpeed)
     
@@ -142,6 +143,8 @@ class Server(BaseHTTPRequestHandler):
     # receive post requests
     def do_POST(self):
         print("POST call received: ", self.path)
+
+        # based on the path, make the correct call to the robot
         if (self.path == "/forward"):
             self.robot.forward()
         elif (self.path == "/backward"):
